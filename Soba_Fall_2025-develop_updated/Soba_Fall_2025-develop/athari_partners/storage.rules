@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Deploy: firebase deploy --only storage
+// Logo uploads use path: companies/{companyId}/logo.{ext}
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function userCompanyId() {
+      return signedIn()
+        && userDoc().data.keys().hasAll(['companyId'])
+        && userDoc().data.companyId is string
+        ? userDoc().data.companyId
+        : '';
+    }
+
+    function isCompanyMember(companyId) {
+      return signedIn() && userCompanyId() == companyId;
+    }
+
+    // Company assets (logos, etc.) — members of that company only.
+    match /companies/{companyId}/{allPaths=**} {
+      allow read: if isCompanyMember(companyId);
+      allow create, update: if isCompanyMember(companyId)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isCompanyMember(companyId);
+    }
+  }
+}

@@ -1,0 +1,99 @@
+rules_version = '2';
+
+// Deploy: firebase deploy --only firestore:rules
+// Or paste into Firebase Console → Firestore Database → Rules → Publish
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userCompanyId() {
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return signedIn() && exists(userPath)
+        ? safeUserCompanyId(userPath)
+        : '';
+    }
+
+    function safeUserCompanyId(userPath) {
+      let data = get(userPath).data;
+      return data.companyId is string ? data.companyId : '';
+    }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    function ownsCompanyDoc(companyId) {
+      let companyPath = /databases/$(database)/documents/companies/$(companyId);
+      return signedIn()
+        && exists(companyPath)
+        && get(companyPath).data.ownerId == request.auth.uid;
+    }
+
+    function approvalFieldsChanged() {
+      return request.resource.data.diff(resource.data).changedKeys().hasAny([
+        'step_0_approved', 'step_0_approvedBy', 'step_0_approvedAt',
+        'step_1_approved', 'step_1_approvedBy', 'step_1_approvedAt',
+        'step_2_approved', 'step_2_approvedBy', 'step_2_approvedAt',
+        'step_3_approved', 'step_3_approvedBy', 'step_3_approvedAt',
+        'step_4_approved', 'step_4_approvedBy', 'step_4_approvedAt',
+        'step_5_approved', 'step_5_approvedBy', 'step_5_approvedAt',
+      ]);
+    }
+
+    match /inviteCodes/{code} {
+      allow read: if signedIn();
+      allow create, update, delete: if signedIn()
+        && request.resource.data.companyId is string
+        && ownsCompanyDoc(request.resource.data.companyId);
+    }
+
+    match /companies/{companyId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow read: if signedIn()
+        && (userCompanyId() == companyId
+          || resource.data.ownerId == request.auth.uid);
+      allow update, delete: if signedIn()
+        && (userCompanyId() == companyId
+          || resource.data.ownerId == request.auth.uid);
+    }
+
+    match /companies/{companyId}/members/{memberId} {
+      allow read: if signedIn()
+        && (userCompanyId() == companyId || request.auth.uid == memberId);
+      allow create: if signedIn()
+        && request.auth.uid == memberId
+        && (
+          request.resource.data.role == 'collaborator'
+          || (
+            request.resource.data.role == 'owner'
+            && ownsCompanyDoc(companyId)
+          )
+        );
+      allow update, delete: if signedIn() && ownsCompanyDoc(companyId);
+    }
+
+    match /companies/{companyId}/planProgress/{docId} {
+      allow read: if signedIn() && userCompanyId() == companyId;
+      allow create: if signedIn() && userCompanyId() == companyId;
+      allow update: if signedIn() && userCompanyId() == companyId && (
+        ownsCompanyDoc(companyId) || !approvalFieldsChanged()
+      );
+      allow delete: if signedIn() && ownsCompanyDoc(companyId);
+    }
+
+    match /companies/{companyId}/{subcollection}/{document=**} {
+      allow read, write: if signedIn()
+        && (userCompanyId() == companyId || ownsCompanyDoc(companyId))
+        && subcollection != 'planProgress'
+        && subcollection != 'members';
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

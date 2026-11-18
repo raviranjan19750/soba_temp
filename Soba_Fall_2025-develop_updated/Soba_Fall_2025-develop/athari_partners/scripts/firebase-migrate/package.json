@@ -1,0 +1,12 @@
+{
+  "name": "firebase-migrate",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "node migrate.mjs",
+    "migrate:dry-run": "node migrate.mjs --dry-run"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

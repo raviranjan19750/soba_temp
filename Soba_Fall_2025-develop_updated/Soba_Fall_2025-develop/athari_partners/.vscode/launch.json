@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "athari_partners (Chrome on localhost)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": [
+        "--web-hostname=localhost",
+        "--web-port=8080"
+      ]
+    },
+    {
+      "name": "athari_partners (web-server on localhost)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}",
+      "program": "lib/main.dart",
+      "deviceId": "web-server",
+      "toolArgs": [
+        "--web-hostname=localhost",
+        "--web-port=8080"
+      ]
+    }
+  ]
+}
